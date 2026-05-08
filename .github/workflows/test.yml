@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build core
+        run: npm run build --workspace=packages/core
+
+      - name: Build CLI
+        run: npm run build --workspace=packages/cli
+
+      - name: Build action
+        run: npm run build --workspace=packages/action
+
+      - name: Run tests
+        run: |
+          cd packages/core
+          npx tsx --test tests/rules/time-bombs.test.ts
+          npx tsx --test tests/rules/scale-bombs.test.ts
+          npx tsx --test tests/rules/concurrency-bombs.test.ts
+
+      - name: Type check
+        run: |
+          cd packages/core && npx tsc --noEmit
+          cd ../cli && npx tsc --noEmit
+          cd ../action && npx tsc --noEmit
