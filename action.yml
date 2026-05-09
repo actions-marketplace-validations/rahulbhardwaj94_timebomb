@@ -1,4 +1,4 @@
-name: 'TimeBomb'
+name: 'TimeBomb Scanner'
 description: 'Detect code that passes review and tests but is guaranteed to break in production'
 author: 'rahulbhardwaj94'
 
