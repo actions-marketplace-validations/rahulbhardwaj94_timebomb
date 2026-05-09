@@ -1,0 +1,35 @@
+name: 'TimeBomb'
+description: 'Detect code that passes review and tests but is guaranteed to break in production'
+author: 'rahulbhardwaj94'
+
+branding:
+  icon: 'alert-triangle'
+  color: 'red'
+
+inputs:
+  github-token:
+    description: 'GitHub token for posting PR comments'
+    required: false
+    default: ${{ github.token }}
+  fail-on:
+    description: 'Minimum severity to fail the workflow: critical, high, medium, none'
+    required: false
+    default: 'critical'
+  paths:
+    description: 'Comma-separated glob patterns for files to analyze'
+    required: false
+    default: '**/*.ts,**/*.tsx,**/*.js,**/*.jsx'
+
+outputs:
+  findings-count:
+    description: 'Total number of findings'
+  critical-count:
+    description: 'Number of critical severity findings'
+  high-count:
+    description: 'Number of high severity findings'
+  medium-count:
+    description: 'Number of medium severity findings'
+
+runs:
+  using: 'node20'
+  main: 'packages/action/dist/index.js'
