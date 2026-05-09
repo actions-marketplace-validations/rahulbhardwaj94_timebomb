@@ -34,7 +34,7 @@ npx timebomb-scanner
 npm install -g timebomb-scanner
 
 # GitHub Action (paste into .github/workflows/timebomb.yml)
-uses: timebomb-dev/timebomb-action@v1
+uses: rahulbhardwaj94/timebomb@v1
 ```
 
 ---
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: timebomb-dev/timebomb-action@v1
+      - uses: rahulbhardwaj94/timebomb@v1
         with:
           fail-on: critical   # critical | high | medium | none
           github-token: ${{ secrets.GITHUB_TOKEN }}

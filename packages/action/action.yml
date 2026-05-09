@@ -1,6 +1,6 @@
 name: 'TimeBomb'
 description: 'Detect code that passes review and tests but is guaranteed to break in production'
-author: 'timebomb-dev'
+author: 'rahulbhardwaj94'
 
 branding:
   icon: 'alert-triangle'
