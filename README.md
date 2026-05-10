@@ -1,12 +1,28 @@
 # TimeBomb
 
-**Detect code that passes review and tests but is guaranteed to break in production.**
+> A junior engineer ships a 30-day reminder feature on a Friday afternoon.
+>
+> ```js
+> setTimeout(sendReminder, 30 * 24 * 60 * 60 * 1000);
+> ```
+>
+> Two approvals on the PR. Tests pass. Deploy goes clean.
+>
+> Saturday, 5:41 AM. The on-call engineer's phone won't stop. By the time she opens her laptop, every user who signed up that week has received their 30-day reminder. All of them. In the same minute.
+>
+> 47,000 emails. 90 seconds. One angry CEO already typing.
+>
+> The number she'll never forget: **2,147,483,647** — the largest signed 32-bit integer. Anything above it overflows. `setTimeout` doesn't warn. It just fires immediately.
+>
+> The PR is still in the review history. Nobody saw it. Nobody could have.
+
+**TimeBomb catches this in CI — before it ships.**
+
+![TimeBomb demo](docs/demo.gif)
 
 ```bash
 npx timebomb-scanner
 ```
-
-![TimeBomb demo](docs/demo.gif)
 
 ---
 
@@ -103,8 +119,8 @@ TimeBomb posts a single PR comment with findings and updates it on subsequent pu
 
 ### Time Bombs (6 rules)
 
-| Rule ID | Severity | What it detects |
-|---------|----------|----------------|
+| Rule ID | Severity | The failure that taught us this rule |
+|---------|----------|--------------------------------------|
 | `settimeout-int32-overflow` | critical | setTimeout delay > 24.8 days → fires immediately |
 | `setinterval-int32-overflow` | critical | setInterval period > 24.8 days → fires at 1ms rate |
 | `hardcoded-year-comparison` | high | `year < 2025` — silently wrong after 2025 |
@@ -114,8 +130,8 @@ TimeBomb posts a single PR comment with findings and updates it on subsequent pu
 
 ### Scale Bombs (7 rules)
 
-| Rule ID | Severity | What it detects |
-|---------|----------|----------------|
+| Rule ID | Severity | The failure that taught us this rule |
+|---------|----------|--------------------------------------|
 | `unbounded-sort` | high | `.sort()` on database-fetched arrays without size guard |
 | `unbounded-reverse` | medium | `.reverse()` on potentially unbounded arrays |
 | `unbounded-recursion` | high | Recursive functions without depth limits |
@@ -126,11 +142,35 @@ TimeBomb posts a single PR comment with findings and updates it on subsequent pu
 
 ### Concurrency Bombs (3 rules)
 
-| Rule ID | Severity | What it detects |
-|---------|----------|----------------|
+| Rule ID | Severity | The failure that taught us this rule |
+|---------|----------|--------------------------------------|
 | `sequential-await-in-loop` | high | `await` inside `for`/`while` loop — serializes all ops |
 | `shared-async-mutation` | high | Shared state mutation after `await` — race condition |
 | `settimeout-zero-as-sync` | medium | `setTimeout(fn, 0)` as synchronization primitive |
+
+---
+
+## Origin Stories
+
+Every TimeBomb rule comes from a real failure mode that engineers have lost weekends to. Three categories, three archetypes.
+
+### The Time Bomb
+
+A junior engineer ships a 30-day reminder. `setTimeout(sendReminder, 30 * 24 * 60 * 60 * 1000)`. Two approvals. Tests pass. Saturday morning, 47,000 reminders fire in 90 seconds — because anything above 2,147,483,647 milliseconds overflows int32 and fires immediately. The PR is still in the review history. Nobody saw it. Nobody could have.
+
+This is what every Time Bomb rule has in common: code that is **correct today and catastrophic tomorrow**, where "tomorrow" is a specific date, year, or duration the author didn't think to check.
+
+### The Scale Bomb
+
+A dashboard works beautifully in the demo. Forty users, sub-second loads. `await Promise.all(userIds.map(fetchUserDetails))` — clean, idiomatic, reviewed. Six months later, an enterprise customer onboards 50,000 users in an afternoon. The Node process spawns 50,000 concurrent fetches. Memory climbs. The container hits its limit. Kubernetes restarts it. The next request comes in. Same thing. The customer churned the following week.
+
+Every Scale Bomb rule shares this profile: code that is **correct at one order of magnitude and fatal at the next**. It was always going to do this. Nobody knew when.
+
+### The Concurrency Bomb
+
+A migration script needs to email 10,000 customers. `for (const user of users) { await sendEmail(user); }` — readable, sequential, safe. In staging it ran 50 test users in 5 seconds. In production, sendEmail averaged 100ms. 10,000 × 100ms = sixteen minutes of a single-threaded process doing one thing. The health check failed at minute three. The load balancer pulled the pod. The retry mechanism started over. Three times. 30,000 emails sent. Same customers. The unsubscribe link got more clicks that day than the product had in a quarter.
+
+Concurrency Bombs are the ones where **the shape of the code hides the cost of the operation**. The loop looks innocent. The `await` looks defensive. Together, at scale, they're a self-DDoS.
 
 ---
 
