@@ -2,9 +2,11 @@ import { SourceFile, SyntaxKind, PropertyAccessExpression, CallExpression, Node 
 import { Rule, Finding } from '../../types';
 import { getColumn } from '../../ast/utils';
 
-// 'read' intentionally omitted: it matches local file reads (readFile, readdir, readline)
-// which are not unbounded database/API sources.
-const FETCH_KEYWORDS = ['find', 'fetch', 'get', 'query', 'select', 'list', 'all', 'load'];
+// 'read' omitted: matches local file reads (readFile, readdir, readline).
+// 'all' omitted: matches Promise.all(...) which is present in virtually every
+//   async function that uses concurrency — causing false positives on any .sort()
+//   that coexists with Promise.all in the same scope.
+const FETCH_KEYWORDS = ['find', 'fetch', 'get', 'query', 'select', 'list', 'load'];
 
 function getScopeText(node: Node): string {
   let current = node.getParent();
@@ -21,27 +23,18 @@ function getScopeText(node: Node): string {
     }
     current = current.getParent();
   }
-  return sourceText(node);
-}
-
-function sourceText(node: Node): string {
   return node.getSourceFile().getText().toLowerCase();
 }
 
 function hasFetchInScope(node: Node): boolean {
   const scopeText = getScopeText(node);
-  const hasAwait = scopeText.includes('await ');
-  // scopeText is lowercased, so match lowercased keyword variants
-  const hasFetchKeyword = FETCH_KEYWORDS.some((kw) =>
-    scopeText.includes(kw + '(') ||
-    scopeText.includes(kw + 'all') ||
-    scopeText.includes(kw + 'many') ||
-    scopeText.includes(kw + 'users') ||
-    scopeText.includes(kw + 'items') ||
-    scopeText.includes(kw + 'records') ||
-    scopeText.includes(kw + 'data')
+  // Require 'await' and a fetch-like keyword to appear in the same expression
+  // (within 80 chars, not crossing a statement boundary). Checking them as two
+  // independent facts causes false positives when 'await localOp()' and a
+  // fetch-like identifier happen to coexist in the same function scope.
+  return FETCH_KEYWORDS.some((kw) =>
+    new RegExp(`await[^;\\n]{0,80}${kw}[\\w]*\\(`).test(scopeText)
   );
-  return hasAwait && hasFetchKeyword;
 }
 
 export const unboundedSort: Rule = {

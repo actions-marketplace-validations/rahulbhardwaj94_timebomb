@@ -57,6 +57,36 @@ describe('unbounded-sort', () => {
     const findings = unboundedSort.check(src);
     assert.equal(findings.length, 0);
   });
+
+  it('does not flag .sort() in an async function that uses Promise.all but no DB fetch (false positive regression)', () => {
+    // "all" was previously in FETCH_KEYWORDS, so "all(" matched "Promise.all(" —
+    // any async function using Promise.all near a .sort() would fire incorrectly.
+    const src = makeSourceFile(`
+      async function processSessions(dirs: string[]) {
+        const results = await Promise.all(dirs.map(d => readDir(d)));
+        const turns: string[] = results.flat();
+        turns.sort();
+        return turns;
+      }
+    `);
+    const findings = unboundedSort.check(src);
+    assert.equal(findings.length, 0);
+  });
+
+  it('does not flag .sort() when await and a fetch-like name appear in unrelated expressions in the same scope', () => {
+    // hasFetchInScope previously checked 'await' and fetch keywords as two independent
+    // facts — so await localOp() + getTurns() (non-async) in the same function triggered.
+    const src = makeSourceFile(`
+      async function buildReport(path: string) {
+        const raw = await readJsonl(path);
+        const turns = getTurns(raw);
+        turns.sort((a, b) => a.ts - b.ts);
+        return turns;
+      }
+    `);
+    const findings = unboundedSort.check(src);
+    assert.equal(findings.length, 0);
+  });
 });
 
 describe('unbounded-reverse', () => {
