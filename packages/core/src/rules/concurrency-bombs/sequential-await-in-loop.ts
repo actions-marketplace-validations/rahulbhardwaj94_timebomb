@@ -59,7 +59,8 @@ export const sequentialAwaitInLoop: Rule = {
         column: getColumn(awaitExpr),
         message: `await inside a loop serializes all operations. With N items this takes N × (operation time) instead of ~(operation time). Use Promise.all() for concurrent execution.`,
         suggestedFix: `const results = await Promise.all(items.map(item => asyncOperation(item)));
-// For rate limiting: import pLimit from 'p-limit'; const limit = pLimit(10); await Promise.all(items.map(i => limit(() => op(i))));`,
+// For rate limiting: import pLimit from 'p-limit'; const limit = pLimit(10); await Promise.all(items.map(i => limit(() => op(i))));
+// Note: if iterating an AsyncGenerator, Promise.all materializes all generators at once — prefer a streaming approach or p-limit instead.`,
       });
     });
 

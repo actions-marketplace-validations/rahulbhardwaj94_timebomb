@@ -2,7 +2,9 @@ import { SourceFile, SyntaxKind, PropertyAccessExpression, CallExpression, Node 
 import { Rule, Finding } from '../../types';
 import { getColumn } from '../../ast/utils';
 
-const FETCH_KEYWORDS = ['find', 'fetch', 'get', 'query', 'select', 'list', 'all', 'load', 'read'];
+// 'read' intentionally omitted: it matches local file reads (readFile, readdir, readline)
+// which are not unbounded database/API sources.
+const FETCH_KEYWORDS = ['find', 'fetch', 'get', 'query', 'select', 'list', 'all', 'load'];
 
 function getScopeText(node: Node): string {
   let current = node.getParent();
