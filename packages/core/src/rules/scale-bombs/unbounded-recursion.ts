@@ -18,12 +18,18 @@ function isSelfCallWithoutDepthGuard(fn: FunctionLike, name: string): boolean {
   const body = fn.getBody();
   if (!body) return false;
 
-  const bodyText = body.getText();
+  // Use AST traversal to find calls where the callee is a bare Identifier matching
+  // the function name. This excludes obj.name() patterns (PropertyAccessExpression),
+  // so Math.round() does not trigger for a function named "round".
+  const hasSelfCall = body.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+    const expr = call.getExpression();
+    return expr.getKind() === SyntaxKind.Identifier && expr.getText() === name;
+  });
 
-  // Must contain a recursive call
-  if (!bodyText.includes(name + '(')) return false;
+  if (!hasSelfCall) return false;
 
   // Check for depth/count guards
+  const bodyText = body.getText();
   const hasDepthGuard =
     bodyText.includes('depth') ||
     bodyText.includes('Depth') ||

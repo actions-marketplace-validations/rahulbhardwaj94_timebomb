@@ -57,6 +57,28 @@ describe('sequential-await-in-loop', () => {
     const findings = sequentialAwaitInLoop.check(src);
     assert.equal(findings.length, 0);
   });
+
+  it('flags await in a for-of over an AsyncGenerator (pattern is real, fix note applies)', () => {
+    // The pattern is genuinely sequential; the rule should still flag it.
+    // The suggestedFix now includes a note that Promise.all is unsafe for AsyncGenerators.
+    const src = makeSourceFile(`
+      async function* streamSessions(dirs: string[]) {
+        for (const dir of dirs) yield dir;
+      }
+      async function processSessions(dirs: string[]) {
+        for await (const session of streamSessions(dirs)) {
+          await processSession(session);
+        }
+      }
+    `);
+    const findings = sequentialAwaitInLoop.check(src);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].ruleId, 'sequential-await-in-loop');
+    assert.ok(
+      findings[0].suggestedFix?.includes('AsyncGenerator'),
+      'suggestedFix should mention AsyncGenerator caveat'
+    );
+  });
 });
 
 describe('shared-async-mutation', () => {

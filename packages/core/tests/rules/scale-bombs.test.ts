@@ -39,6 +39,54 @@ describe('unbounded-sort', () => {
     const findings = unboundedSort.check(src);
     assert.equal(findings.length, 0);
   });
+
+  it('does not flag .sort() on locally accumulated data read from a file (false positive regression)', () => {
+    // "read" was previously in FETCH_KEYWORDS, causing local file reads to be treated
+    // as unbounded database fetches. turns.sort() on JSONL file data should not flag.
+    const src = makeSourceFile(`
+      async function buildSession(filePath: string) {
+        const turns: string[] = [];
+        const lines = await readFile(filePath, 'utf8');
+        for (const line of lines.split('\\n')) {
+          turns.push(line);
+        }
+        turns.sort((a, b) => a.localeCompare(b));
+        return turns;
+      }
+    `);
+    const findings = unboundedSort.check(src);
+    assert.equal(findings.length, 0);
+  });
+
+  it('does not flag .sort() in an async function that uses Promise.all but no DB fetch (false positive regression)', () => {
+    // "all" was previously in FETCH_KEYWORDS, so "all(" matched "Promise.all(" —
+    // any async function using Promise.all near a .sort() would fire incorrectly.
+    const src = makeSourceFile(`
+      async function processSessions(dirs: string[]) {
+        const results = await Promise.all(dirs.map(d => readDir(d)));
+        const turns: string[] = results.flat();
+        turns.sort();
+        return turns;
+      }
+    `);
+    const findings = unboundedSort.check(src);
+    assert.equal(findings.length, 0);
+  });
+
+  it('does not flag .sort() when await and a fetch-like name appear in unrelated expressions in the same scope', () => {
+    // hasFetchInScope previously checked 'await' and fetch keywords as two independent
+    // facts — so await localOp() + getTurns() (non-async) in the same function triggered.
+    const src = makeSourceFile(`
+      async function buildReport(path: string) {
+        const raw = await readJsonl(path);
+        const turns = getTurns(raw);
+        turns.sort((a, b) => a.ts - b.ts);
+        return turns;
+      }
+    `);
+    const findings = unboundedSort.check(src);
+    assert.equal(findings.length, 0);
+  });
 });
 
 describe('unbounded-reverse', () => {
@@ -88,6 +136,31 @@ describe('unbounded-recursion', () => {
     const src = makeSourceFile(`
       function process(items) {
         return items.map(x => x * 2);
+      }
+    `);
+    const findings = unboundedRecursion.check(src);
+    assert.equal(findings.length, 0);
+  });
+
+  it('does not flag a function named "round" that calls Math.round (false positive regression)', () => {
+    // The function name "round" contains the substring "round(" when Math.round() is called.
+    // The fix uses AST traversal to verify the call is a bare self-call, not obj.name().
+    const src = makeSourceFile(`
+      function round(n: number): number {
+        return Math.round(n * 100) / 100;
+      }
+    `);
+    const findings = unboundedRecursion.check(src);
+    assert.equal(findings.length, 0);
+  });
+
+  it('does not flag stdlib method calls whose name matches the function (e.g. format, parse, sort)', () => {
+    const src = makeSourceFile(`
+      function format(s: string): string {
+        return String.prototype.format ? s.format() : s;
+      }
+      function parse(input: string): number {
+        return parseInt(input, 10);
       }
     `);
     const findings = unboundedRecursion.check(src);
